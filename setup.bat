@@ -71,10 +71,14 @@ if errorlevel 1 (
     echo        If you have a GPU, make sure the NVIDIA driver is installed.
 ) else (
     REM Extract GPU name and check for RTX 50xx
-    for /f "usebackq delims=" %%g in (`nvidia-smi --query-gpu=name --format=csv,noheader 2^>nul`) do (
-        echo       Detected: %%g
-        echo %%g | findstr /i "5090\|5080\|5070\|5060\|5050" >nul 2>&1
-        if not errorlevel 1 set IS_RTX50=1
+    REM Redirect stderr to stdout so errors from older nvidia-smi are captured and can be filtered
+    for /f "usebackq delims=" %%g in (`nvidia-smi --query-gpu=name --format=csv,noheader 2^>&1`) do (
+        echo %%g | findstr /b /i "ERROR" >nul 2>&1
+        if errorlevel 1 (
+            echo       Detected: %%g
+            echo %%g | findstr /i "5090\|5080\|5070\|5060\|5050" >nul 2>&1
+            if not errorlevel 1 set IS_RTX50=1
+        )
     )
 )
 
