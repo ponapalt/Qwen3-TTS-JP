@@ -70,14 +70,24 @@ if errorlevel 1 (
     echo [WARN] nvidia-smi not found. Will use stable CUDA 12.4 build.
     echo        If you have a GPU, make sure the NVIDIA driver is installed.
 ) else (
-    REM Extract GPU name and check for RTX 50xx
-    REM Redirect stderr to stdout so errors from older nvidia-smi are captured and can be filtered
-    for /f "usebackq delims=" %%g in (`nvidia-smi --query-gpu=name --format=csv,noheader 2^>&1`) do (
-        echo %%g | findstr /b /i "ERROR" >nul 2>&1
-        if errorlevel 1 (
+    REM Check if --query-gpu is supported (requires CUDA 7+ driver)
+    nvidia-smi --query-gpu=name --format=csv,noheader >nul 2>&1
+    if not errorlevel 1 (
+        REM Modern nvidia-smi: use --query-gpu
+        for /f "usebackq delims=" %%g in (`nvidia-smi --query-gpu=name --format=csv,noheader 2^>nul`) do (
             echo       Detected: %%g
             echo %%g | findstr /i "5090\|5080\|5070\|5060\|5050" >nul 2>&1
             if not errorlevel 1 set IS_RTX50=1
+        )
+    ) else (
+        REM Older nvidia-smi: fall back to nvidia-smi -L
+        REM Output format: "GPU 0: <name> (UUID: GPU-...)"
+        for /f "usebackq tokens=1,* delims=:" %%a in (`nvidia-smi -L 2^>nul`) do (
+            for /f "usebackq tokens=1 delims=(" %%c in ("%%b") do (
+                echo       Detected:%%c
+                echo %%c | findstr /i "5090\|5080\|5070\|5060\|5050" >nul 2>&1
+                if not errorlevel 1 set IS_RTX50=1
+            )
         )
     )
 )
