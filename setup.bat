@@ -70,25 +70,12 @@ if errorlevel 1 (
     echo [WARN] nvidia-smi not found. Will use stable CUDA 12.4 build.
     echo        If you have a GPU, make sure the NVIDIA driver is installed.
 ) else (
-    REM Check if --query-gpu is supported (requires CUDA 7+ driver)
-    nvidia-smi --query-gpu=name --format=csv,noheader >nul 2>&1
-    if not errorlevel 1 (
-        REM Modern nvidia-smi: use --query-gpu
-        for /f "usebackq delims=" %%g in (`nvidia-smi --query-gpu=name --format=csv,noheader 2^>nul`) do (
-            echo       Detected: %%g
-            echo %%g | findstr /i "5090\|5080\|5070\|5060\|5050" >nul 2>&1
-            if not errorlevel 1 set IS_RTX50=1
-        )
-    ) else (
-        REM Older nvidia-smi: fall back to nvidia-smi -L
-        REM Output format: "GPU 0: <name> (UUID: GPU-...)"
-        for /f "usebackq tokens=1,* delims=:" %%a in (`nvidia-smi -L 2^>nul`) do (
-            for /f "usebackq tokens=1 delims=(" %%c in ("%%b") do (
-                echo       Detected:%%c
-                echo %%c | findstr /i "5090\|5080\|5070\|5060\|5050" >nul 2>&1
-                if not errorlevel 1 set IS_RTX50=1
-            )
-        )
+    REM Use Python to parse nvidia-smi -L output (works with any nvidia-smi version)
+    REM Output format of nvidia-smi -L: "GPU 0: <name> (UUID: GPU-...)"
+    for /f "usebackq delims=" %%g in (`python -c "import subprocess,re; r=subprocess.run(['nvidia-smi','-L'],capture_output=True,text=True); [print(m.group(1)) for line in r.stdout.splitlines() for m in [re.search(r'GPU \d+: (.+?) \(UUID',line)] if m]" 2^>nul`) do (
+        echo       Detected: %%g
+        echo %%g | findstr /i "5090\|5080\|5070\|5060\|5050" >nul 2>&1
+        if not errorlevel 1 set IS_RTX50=1
     )
 )
 
